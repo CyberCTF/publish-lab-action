@@ -1,0 +1,28 @@
+name: Publish CyberCTF lab
+description: >-
+  Register the lab in the calling repository with CyberCTF. The endpoints live here (not in the
+  public lab repos), and the lab's own metadata is treated as untrusted input: it is validated,
+  the slug is forced to the repository name, and the repository and commit come from the trusted
+  GitHub context, never from the lab. Gate the job behind an environment with required reviewers.
+inputs:
+  client_id:
+    description: CyberAuth OAuth client id (a labs:publish client). Pass an org secret.
+    required: true
+  client_secret:
+    description: CyberAuth OAuth client secret. Pass an org secret.
+    required: true
+  allowed_owner:
+    description: Only publish labs from this GitHub owner. A repo under another owner is refused.
+    required: false
+    default: CyberCTF
+  backend_url:
+    description: CyberBackend base URL. Defaults are baked in here so public lab repos never carry them.
+    required: false
+    default: https://cyberbackend.com
+  token_url:
+    description: CyberAuth token endpoint.
+    required: false
+    default: https://www.cyberauth.co/api/auth/oauth2/token
+runs:
+  using: node20
+  main: index.js
