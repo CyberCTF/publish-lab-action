@@ -38,10 +38,16 @@ function str(v, field, { min = 1, max = 2000 } = {}) {
   if (v.length < min || v.length > max) fail(`${field} length must be ${min}..${max}`);
   return v;
 }
-// An enum-style token (category, evidence kind, capability): upper snake case, bounded.
+// An enum-style token (category, evidence kind): upper snake case, bounded.
 function token(v, field, { max = 48 } = {}) {
   const s = String(v).toUpperCase();
   if (!/^[A-Z][A-Z0-9_]*$/.test(s) || s.length > max) fail(`${field} is not a valid token`);
+  return s;
+}
+// A kebab-case slug (capabilities): lowercase letters, digits and hyphens.
+function slug(v, field, { max = 64 } = {}) {
+  const s = String(v);
+  if (!/^[a-z][a-z0-9-]*$/.test(s) || s.length > max) fail(`${field} must be kebab-case (lowercase letters, digits, hyphens)`);
   return s;
 }
 
@@ -110,7 +116,7 @@ let capabilities = [];
 if (meta.capabilities !== undefined) {
   if (!Array.isArray(meta.capabilities)) fail("capabilities must be an array");
   if (meta.capabilities.length > 32) fail("too many capabilities");
-  capabilities = meta.capabilities.map((c, i) => token(c, `capabilities[${i}]`));
+  capabilities = meta.capabilities.map((c, i) => slug(c, `capabilities[${i}]`));
 }
 
 // --- runtime and providers: derived from the generated tree, strictly allowlisted ---
