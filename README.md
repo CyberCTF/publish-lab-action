@@ -33,9 +33,7 @@ jobs:
           token_url: ${{ secrets.CYBERAUTH_TOKEN_URL }}
 ```
 
-`CYBERAUTH_CLIENT_ID` / `CYBERAUTH_CLIENT_SECRET` are **organization** secrets (set once for CyberCTF,
-scoped to the lab repos), so rotation is one place and there is no per-repo copy. The endpoints are
-defaults baked into this action and are masked in logs; lab repos never carry them.
+All four values (client id/secret and the backend/token URLs) are **organization** secrets (set once for CyberCTF, scoped to the lab repos), so rotation is one place, there is no per-repo copy, and no endpoint appears in a lab repo or a log.
 
 ## Protection against a malicious lab
 
