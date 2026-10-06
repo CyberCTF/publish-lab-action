@@ -45,7 +45,7 @@ function token(v, field, { max = 48 } = {}) {
   return s;
 }
 // A kebab-case slug (capabilities): lowercase letters, digits and hyphens.
-function slug(v, field, { max = 64 } = {}) {
+function kebab(v, field, { max = 64 } = {}) {
   const s = String(v);
   if (!/^[a-z][a-z0-9-]*$/.test(s) || s.length > max) fail(`${field} must be kebab-case (lowercase letters, digits, hyphens)`);
   return s;
@@ -116,7 +116,7 @@ let capabilities = [];
 if (meta.capabilities !== undefined) {
   if (!Array.isArray(meta.capabilities)) fail("capabilities must be an array");
   if (meta.capabilities.length > 32) fail("too many capabilities");
-  capabilities = meta.capabilities.map((c, i) => slug(c, `capabilities[${i}]`));
+  capabilities = meta.capabilities.map((c, i) => kebab(c, `capabilities[${i}]`));
 }
 
 // --- runtime and providers: derived from the generated tree, strictly allowlisted ---
