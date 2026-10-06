@@ -16,13 +16,11 @@ inputs:
     required: false
     default: CyberCTF
   backend_url:
-    description: CyberBackend base URL. Defaults are baked in here so public lab repos never carry them.
-    required: false
-    default: https://cyberbackend.com
+    description: CyberBackend base URL. Pass an org secret so it never appears in a lab repo or log.
+    required: true
   token_url:
-    description: CyberAuth token endpoint.
-    required: false
-    default: https://www.cyberauth.co/api/auth/oauth2/token
+    description: CyberAuth token endpoint. Pass an org secret.
+    required: true
 runs:
   using: node20
   main: index.js
