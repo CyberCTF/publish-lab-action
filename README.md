@@ -4,7 +4,7 @@ The one way CyberCTF labs register with the catalogue. A lab repository calls th
 publish workflow; the action reads the lab's `.ctf/metadata.json` and generated `.isoloom/` tree,
 validates them, and calls `publishLab` on CyberBackend.
 
-It is private on purpose: the backend and token endpoints live here, not in the (public) lab repos.
+It is public so public lab repos can use it; the backend and token endpoints are passed in from organization secrets, so they live in no repo or log, not even here.
 
 ## Use it
 
@@ -29,6 +29,8 @@ jobs:
         with:
           client_id: ${{ secrets.CYBERAUTH_CLIENT_ID }}
           client_secret: ${{ secrets.CYBERAUTH_CLIENT_SECRET }}
+          backend_url: ${{ secrets.CYBERBACKEND_URL }}
+          token_url: ${{ secrets.CYBERAUTH_TOKEN_URL }}
 ```
 
 `CYBERAUTH_CLIENT_ID` / `CYBERAUTH_CLIENT_SECRET` are **organization** secrets (set once for CyberCTF,

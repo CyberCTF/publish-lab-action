@@ -59,8 +59,9 @@ if (owner.toLowerCase() !== allowedOwner.toLowerCase()) {
 // --- credentials and endpoints: masked so they never surface in (public) Actions logs ---
 const clientId = input("client_id", { required: true });
 const clientSecret = input("client_secret", { required: true });
-const backendUrl = input("backend_url", { def: "https://cyberbackend.com" }).replace(/\/+$/, "");
-const tokenUrl = input("token_url", { def: "https://www.cyberauth.co/api/auth/oauth2/token" });
+// Endpoints come from inputs (org secrets), never hardcoded, so this public action carries none.
+const backendUrl = input("backend_url", { required: true }).replace(/\/+$/, "");
+const tokenUrl = input("token_url", { required: true });
 mask(clientSecret);
 mask(backendUrl);
 mask(tokenUrl);
