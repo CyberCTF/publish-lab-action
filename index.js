@@ -206,7 +206,19 @@ async function main() {
     body: JSON.stringify({ query: PUBLISH_LAB, variables: { input: labInput } }),
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || body.errors) fail(`publishLab failed: ${JSON.stringify(body.errors ?? { status: res.status })}`);
+  if (!res.ok || body.errors) {
+    // Forbidden means the token carries no publisher role: say what it does carry (its public
+    // claims only, never the token), so a scope or client mismatch shows up in the log.
+    if ((body.errors || []).some((e) => e && e.extensions && e.extensions.code === "FORBIDDEN")) {
+      try {
+        const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+        console.log(`token claims: azp=${claims.azp} scope="${claims.scope ?? ""}" aud=${JSON.stringify(claims.aud)} iss=${claims.iss}`);
+      } catch {
+        console.log("token claims: not a JWT");
+      }
+    }
+    fail(`publishLab failed: ${JSON.stringify(body.errors ?? { status: res.status })}`);
+  }
   const out = body.data && body.data.publishLab;
   if (!out) fail("publishLab returned no data");
   console.log(`Published ${slug} [${runtime}]: ${out.state} (${out.labId})`);
