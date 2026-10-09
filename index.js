@@ -13,7 +13,7 @@ const path = require("path");
 
 const CLOUD_PROVIDERS = new Set(["aws", "azure", "gcp"]);
 const ALLOWED_PROVIDERS = new Set([
-  "virtualbox", "vmware_desktop", "parallels", "hyperv", "libvirt", "vmware_esxi",
+  "virtualbox", "vmware_desktop", "parallels", "hyperv", "libvirt", "qemu", "vmware_esxi",
   "proxmox", "aws", "azure", "gcp", "digitalocean", "linode", "oci", "hosted",
 ]);
 const ALLOWED_ARCHS = new Set(["x86_64", "aarch64"]);
@@ -155,6 +155,12 @@ if (cloudServices) {
 }
 if (isFile(".isoloom/vagrant/Vagrantfile")) {
   ["virtualbox", "vmware_desktop", "parallels", "hyperv", "libvirt", "vmware_esxi"].forEach((p) => derived.add(p));
+  // QEMU (an x86 lab emulated on an Apple Silicon Mac): only from an Isoloom that generates it
+  // (0.10+: the Vagrantfile reads HOST_ARCH), and only when every VM got its network there.
+  // QEMU links exactly two VMs per network without root; Isoloom writes a "No private network
+  // on QEMU" comment on a VM it can't link, and such a lab must not be offered on QEMU.
+  const vagrantfile = fs.readFileSync(".isoloom/vagrant/Vagrantfile", "utf8");
+  if (/^HOST_ARCH = /m.test(vagrantfile) && !vagrantfile.includes("# No private network on QEMU:")) derived.add("qemu");
 }
 if (isDir(".isoloom/proxmox") || isDir(".isoloom/docker-vm/proxmox")) derived.add("proxmox");
 for (const base of [".isoloom/cloud-docker", ".isoloom/cloud-vm"]) {
