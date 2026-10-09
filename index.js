@@ -105,7 +105,7 @@ const description = str(meta.description, "description", { max: 4000 });
 const question = str(meta.question, "question", { max: 1000 });
 const category = token(meta.category, "category");
 const difficulty = Number(meta.difficulty);
-if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 5) fail("difficulty must be an integer 1..5");
+if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 3) fail("difficulty must be an integer 1..3 (the catalogue's scale)");
 const evidenceKind = token(meta.evidence_kind, "evidence_kind");
 const evidenceParams = meta.evidence_params === undefined ? {} : meta.evidence_params;
 if (typeof evidenceParams !== "object" || evidenceParams === null || Array.isArray(evidenceParams)) {
