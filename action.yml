@@ -21,6 +21,13 @@ inputs:
   token_url:
     description: CyberAuth token endpoint. Pass an org secret.
     required: true
+  publish:
+    description: >-
+      "true" puts the lab in the catalogue once its registration is approved (the environment's
+      reviewers are the gate); "false" registers it as a draft. Cloud labs stay drafts either way
+      until the launcher runs them.
+    required: false
+    default: "true"
 runs:
   using: node20
   main: index.js
