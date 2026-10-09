@@ -65,3 +65,25 @@ A push to a lab repo must not be able to publish on its own. Two controls:
 Move from the org secret to keyless **GitHub OIDC**: the lab's workflow mints a short-lived OIDC
 token and CyberAuth federates it (verifying the issuer and that the repo is under CyberCTF), so no
 long-lived secret is stored anywhere. Needs a one-time CyberAuth change to trust GitHub's OIDC.
+
+## Objectives (`.ctf/objectives.json`, optional)
+
+A lab's challenges and their guided steps, checked by CyberBackend (see its
+`docs/lab-objectives.md`). Without the file the lab is one challenge, `main`, from
+`metadata.json`'s `evidence_kind`.
+
+```json
+{ "objectives": [
+  { "key": "main", "title": "Read the admin's flag", "prompt": "Find the flag in the app.",
+    "check": { "evidence": "SECRET", "format": "FLAG{%s}" }, "dev": "FLAG{...upstream...}",
+    "capabilities": ["idor-exploit-http"], "hints": ["Look at how orders are fetched."],
+    "steps": [ { "key": "login", "title": "Sign in", "prompt": "Which demo account works?",
+                 "check": { "answer": ["test"] } } ] },
+  { "key": "bonus", "title": "Static flag", "check": { "flag": "FLAG{static}" }, "optional": true }
+] }
+```
+
+`check` is one of: `evidence` (a per-player value the lab claims at startup; `evidence_params`,
+`format`), `flag` (a static flag, sent as its sha256 only) or `flag_sha256`, `answer` (accepted
+values, case-insensitive) with an optional `answer_regex`. `dev` (the value the lab uses
+without a launch token) stays in the repo and is never sent.

@@ -9,6 +9,7 @@
 // the repository name, so a repo can only ever (re)publish its own lab.
 
 const fs = require("fs");
+const crypto = require("crypto");
 const path = require("path");
 
 const CLOUD_PROVIDERS = new Set(["aws", "azure", "gcp"]);
@@ -195,6 +196,85 @@ if (meta.architectures !== undefined) {
   architectures = runtime === "VM" ? ["x86_64"] : ["x86_64", "aarch64"];
 }
 
+// --- objectives (.ctf/objectives.json, optional): untrusted, validated field by field ---
+// A lab's challenges and their guided steps. `dev` values (the lab's development flags) are
+// for the lab only and never sent; a static flag is sent as its sha256 only.
+const OBJECTIVES = ".ctf/objectives.json";
+let objectives;
+if (isFile(OBJECTIVES)) {
+  if (fs.statSync(OBJECTIVES).size > 512 * 1024) fail(`${OBJECTIVES} is too large`);
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(OBJECTIVES, "utf8"));
+  } catch {
+    fail(`${OBJECTIVES} is not valid JSON`);
+  }
+  const list = raw && !Array.isArray(raw) ? raw.objectives : raw;
+  if (!Array.isArray(list) || list.length === 0) fail("objectives must be a non-empty array");
+  if (list.length > 300) fail("too many objectives");
+  let total = 0;
+  const objective = (o, where, depth) => {
+    if (o === null || typeof o !== "object" || Array.isArray(o)) fail(`${where} must be an object`);
+    if (++total > 1000) fail("too many objectives and steps");
+    const out = { key: kebab(o.key, `${where}.key`), title: str(o.title, `${where}.title`, { max: 200 }) };
+    if (o.prompt !== undefined) out.prompt = str(o.prompt, `${where}.prompt`, { max: 4000 });
+    const c = o.check;
+    if (c === null || typeof c !== "object" || Array.isArray(c)) fail(`${where}.check must be an object`);
+    const check = {};
+    const kinds = ["evidence", "flag", "flag_sha256", "answer", "answer_regex"].filter((k) => c[k] !== undefined);
+    if (kinds.length !== 1 && !(kinds.length === 2 && kinds.includes("answer") && kinds.includes("answer_regex"))) {
+      fail(`${where}.check needs exactly one of evidence, flag, flag_sha256, answer (answer_regex may join answer)`);
+    }
+    if (c.evidence !== undefined) {
+      check.evidence = token(c.evidence, `${where}.check.evidence`);
+      if (c.evidence_params !== undefined) {
+        if (c.evidence_params === null || typeof c.evidence_params !== "object" || Array.isArray(c.evidence_params)) {
+          fail(`${where}.check.evidence_params must be an object`);
+        }
+        check.evidenceParams = JSON.stringify(c.evidence_params);
+      }
+      if (c.format !== undefined) check.format = str(c.format, `${where}.check.format`, { max: 100 });
+    }
+    if (c.flag !== undefined) {
+      check.flagSha256 = crypto.createHash("sha256").update(str(c.flag, `${where}.check.flag`, { max: 500 }).trim()).digest("hex");
+    }
+    if (c.flag_sha256 !== undefined) {
+      const h = String(c.flag_sha256).toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(h)) fail(`${where}.check.flag_sha256 must be 64 hex characters`);
+      check.flagSha256 = h;
+    }
+    if (c.answer !== undefined) {
+      if (!Array.isArray(c.answer) || c.answer.length === 0 || c.answer.length > 50) fail(`${where}.check.answer must be 1..50 values`);
+      check.answer = c.answer.map((a, i) => str(String(a), `${where}.check.answer[${i}]`, { max: 500 }));
+    }
+    if (c.answer_regex !== undefined) check.answerRegex = str(c.answer_regex, `${where}.check.answer_regex`, { max: 200 });
+    out.check = check;
+    if (o.hints !== undefined) {
+      if (!Array.isArray(o.hints) || o.hints.length > 20) fail(`${where}.hints must be an array of at most 20`);
+      out.hints = o.hints.map((h, i) => str(h, `${where}.hints[${i}]`, { max: 2000 }));
+    }
+    if (o.points !== undefined) {
+      if (!Number.isInteger(o.points) || o.points < 0 || o.points > 10000) fail(`${where}.points must be an integer 0..10000`);
+      out.points = o.points;
+    }
+    if (o.optional !== undefined) out.optional = o.optional === true;
+    if (o.capabilities !== undefined) {
+      if (!Array.isArray(o.capabilities) || o.capabilities.length > 32) fail(`${where}.capabilities must be an array of at most 32`);
+      out.capabilities = [...new Set(o.capabilities.map((x, i) => kebab(x, `${where}.capabilities[${i}]`, { max: 128 })))];
+    }
+    if (o.steps !== undefined) {
+      if (depth > 0) fail(`${where}.steps: steps can't have steps`);
+      if (!Array.isArray(o.steps) || o.steps.length > 30) fail(`${where}.steps must be an array of at most 30`);
+      out.steps = o.steps.map((x, i) => objective(x, `${where}.steps[${i}]`, depth + 1));
+    }
+    return out;
+  };
+  objectives = list.map((o, i) => objective(o, `objectives[${i}]`, 0));
+  const keys = [];
+  for (const o of objectives) keys.push(o.key, ...(o.steps || []).map((x) => x.key));
+  if (new Set(keys).size !== keys.length) fail("objective keys must be unique in the lab (steps included)");
+}
+
 // --- publish: client-credentials token, then one parameterised GraphQL mutation ---
 const PUBLISH_LAB =
   "mutation ($input: PublishLabInput!, $publish: Boolean) { publishLab(input: $input, publish: $publish) { labId state } }";
@@ -217,6 +297,7 @@ async function main() {
     slug, title, description, category, difficulty,
     evidenceKind, evidenceParams: JSON.stringify(evidenceParams),
     capabilities, question, runtime, repository, commit, providers, architectures,
+    ...(objectives ? { objectives } : {}),
   };
   const res = await fetch(`${backendUrl}/graphql`, {
     method: "POST",
@@ -246,6 +327,7 @@ async function main() {
   if (!out) fail("publishLab returned no data");
   console.log(`Published ${slug} [${runtime}]: ${out.state} (${out.labId})`);
   console.log(`Providers: ${providers.join(", ")}`);
+  if (objectives) console.log(`Objectives: ${objectives.map((o) => o.key + (o.steps ? ` (${o.steps.length} steps)` : "")).join(", ")}`);
 }
 
 main().catch((e) => fail(String((e && e.message) || e)));
