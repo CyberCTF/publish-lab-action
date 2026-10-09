@@ -213,6 +213,7 @@ async function main() {
       try {
         const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
         console.log(`token claims: azp=${claims.azp} scope="${claims.scope ?? ""}" aud=${JSON.stringify(claims.aud)} iss=${claims.iss}`);
+        console.log(`token claim names: ${Object.keys(claims).sort().join(", ")}; sub ${claims.sub ? (claims.sub === claims.azp ? "= azp" : "present, differs from azp") : "absent"}`);
       } catch {
         console.log("token claims: not a JWT");
       }
