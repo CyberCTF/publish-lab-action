@@ -69,6 +69,7 @@ const clientSecret = input("client_secret", { required: true });
 // Endpoints come from inputs (org secrets), never hardcoded, so this public action carries none.
 const backendUrl = input("backend_url", { required: true }).replace(/\/+$/, "");
 const tokenUrl = input("token_url", { required: true });
+const publish = input("publish", { def: "true" }) !== "false";
 mask(clientSecret);
 mask(backendUrl);
 mask(tokenUrl);
@@ -189,7 +190,8 @@ if (meta.architectures !== undefined) {
 }
 
 // --- publish: client-credentials token, then one parameterised GraphQL mutation ---
-const PUBLISH_LAB = "mutation ($input: PublishLabInput!) { publishLab(input: $input) { labId state } }";
+const PUBLISH_LAB =
+  "mutation ($input: PublishLabInput!, $publish: Boolean) { publishLab(input: $input, publish: $publish) { labId state } }";
 
 async function main() {
   const tokenRes = await fetch(tokenUrl, {
@@ -217,7 +219,7 @@ async function main() {
       accept: "application/graphql-response+json",
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ query: PUBLISH_LAB, variables: { input: labInput } }),
+    body: JSON.stringify({ query: PUBLISH_LAB, variables: { input: labInput, publish } }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body.errors) {
