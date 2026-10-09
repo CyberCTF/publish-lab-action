@@ -11,6 +11,7 @@
 const fs = require("fs");
 const path = require("path");
 
+const CLOUD_PROVIDERS = new Set(["aws", "azure", "gcp"]);
 const ALLOWED_PROVIDERS = new Set([
   "virtualbox", "vmware_desktop", "parallels", "hyperv", "libvirt", "vmware_esxi",
   "proxmox", "aws", "azure", "gcp", "digitalocean", "linode", "oci", "hosted",
@@ -135,9 +136,22 @@ const isDir = (p) => {
   }
 };
 
-const runtime = isFile(".isoloom/docker/compose.yml") ? "DOCKER" : "VM";
+// Cloud services (Isoloom's cloud-services target): a Terraform module applied into the
+// player's own cloud account, the cloud named in the resolved spec.
+const cloudServices = isFile(".isoloom/cloud-services/up.sh");
+const runtime = cloudServices ? "CLOUD" : isFile(".isoloom/docker/compose.yml") ? "DOCKER" : "VM";
 
 const derived = new Set();
+if (cloudServices) {
+  let cloud;
+  try {
+    cloud = JSON.parse(fs.readFileSync(".isoloom/resolved.json", "utf8")).cloud;
+  } catch {
+    fail("cannot read .isoloom/resolved.json (regenerate with Isoloom 0.10 or later)");
+  }
+  if (!cloud || !CLOUD_PROVIDERS.has(cloud.provider)) fail("resolved.json names no supported cloud (aws, azure, gcp)");
+  derived.add(cloud.provider);
+}
 if (isFile(".isoloom/vagrant/Vagrantfile")) {
   ["virtualbox", "vmware_desktop", "parallels", "hyperv", "libvirt", "vmware_esxi"].forEach((p) => derived.add(p));
 }
@@ -153,7 +167,7 @@ for (const base of [".isoloom/cloud-docker", ".isoloom/cloud-vm"]) {
     if (ALLOWED_PROVIDERS.has(e) && isDir(path.join(base, e))) derived.add(e); // unknown dir names ignored
   }
 }
-if (isFile(".isoloom/docker/compose.yml")) derived.add("hosted");
+if (!cloudServices && isFile(".isoloom/docker/compose.yml")) derived.add("hosted");
 
 // metadata.providers may only NARROW the derived set, never add a target Isoloom did not produce.
 let providers = [...derived];
@@ -171,7 +185,7 @@ if (meta.architectures !== undefined) {
   architectures = meta.architectures.filter((a) => ALLOWED_ARCHS.has(a));
   if (architectures.length === 0) fail("no valid architectures");
 } else {
-  architectures = runtime === "DOCKER" ? ["x86_64", "aarch64"] : ["x86_64"];
+  architectures = runtime === "VM" ? ["x86_64"] : ["x86_64", "aarch64"];
 }
 
 // --- publish: client-credentials token, then one parameterised GraphQL mutation ---
