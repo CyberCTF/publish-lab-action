@@ -217,11 +217,17 @@ if (isFile(OBJECTIVES)) {
     if (o === null || typeof o !== "object" || Array.isArray(o)) fail(`${where} must be an object`);
     if (++total > 1000) fail("too many objectives and steps");
     const out = { key: kebab(o.key, `${where}.key`), title: str(o.title, `${where}.title`, { max: 200 }) };
+    if (o.role !== undefined) {
+      const role = String(o.role).toUpperCase();
+      if (!["CHALLENGE", "KEY"].includes(role)) fail(`${where}.role must be challenge or key`);
+      if (depth > 0) fail(`${where}.role: steps take no role`);
+      out.role = role;
+    }
     if (o.prompt !== undefined) out.prompt = str(o.prompt, `${where}.prompt`, { max: 4000 });
     const c = o.check;
     if (c === null || typeof c !== "object" || Array.isArray(c)) fail(`${where}.check must be an object`);
     const check = {};
-    const kinds = ["evidence", "flag", "flag_sha256", "answer", "answer_regex"].filter((k) => c[k] !== undefined);
+    const kinds = ["evidence", "flag", "flag_sha256", "answer", "answer_regex", "keyed"].filter((k) => c[k] !== undefined);
     if (kinds.length !== 1 && !(kinds.length === 2 && kinds.includes("answer") && kinds.includes("answer_regex"))) {
       fail(`${where}.check needs exactly one of evidence, flag, flag_sha256, answer (answer_regex may join answer)`);
     }
@@ -248,6 +254,25 @@ if (isFile(OBJECTIVES)) {
       check.answer = c.answer.map((a, i) => str(String(a), `${where}.check.answer[${i}]`, { max: 500 }));
     }
     if (c.answer_regex !== undefined) check.answerRegex = str(c.answer_regex, `${where}.check.answer_regex`, { max: 200 });
+    if (c.keyed !== undefined) {
+      // A flag derived from the lab's per-player key (role: key objective) with an HMAC, as
+      // Juice Shop and WrongSecrets do: the backend recomputes it from the key it issued.
+      const k = c.keyed;
+      if (k === null || typeof k !== "object" || Array.isArray(k)) fail(`${where}.check.keyed must be an object`);
+      const ALGOS = { "hmac-sha1": "HMAC_SHA1", "hmac-sha256": "HMAC_SHA256" };
+      const ENCS = { hex: "HEX", base64: "BASE64", base64url: "BASE64URL" };
+      const algorithm = ALGOS[String(k.algorithm).toLowerCase()];
+      const encoding = ENCS[String(k.encoding ?? "hex").toLowerCase()];
+      if (!algorithm) fail(`${where}.check.keyed.algorithm must be hmac-sha1 or hmac-sha256`);
+      if (!encoding) fail(`${where}.check.keyed.encoding must be hex, base64 or base64url`);
+      check.keyed = {
+        keyObjective: kebab(k.key_objective ?? k.keyObjective, `${where}.check.keyed.key_objective`),
+        algorithm,
+        input: str(k.input, `${where}.check.keyed.input`, { max: 500 }),
+        encoding,
+      };
+      if (k.format !== undefined) check.keyed.format = str(k.format, `${where}.check.keyed.format`, { max: 100 });
+    }
     out.check = check;
     if (o.hints !== undefined) {
       if (!Array.isArray(o.hints) || o.hints.length > 20) fail(`${where}.hints must be an array of at most 20`);

@@ -87,3 +87,8 @@ A lab's challenges and their guided steps, checked by CyberBackend (see its
 `format`), `flag` (a static flag, sent as its sha256 only) or `flag_sha256`, `answer` (accepted
 values, case-insensitive) with an optional `answer_regex`. `dev` (the value the lab uses
 without a launch token) stays in the repo and is never sent.
+
+Two more forms for labs whose flags all derive from one per-player key (Juice Shop, WrongSecrets):
+a hidden key objective `{ "key": "ctf-key", "role": "key", "title": "CTF key", "check": { "evidence": "SECRET" } }`
+(delivered to the lab as `CTF_FLAG_CTF_KEY`, never shown to players), and challenges checked as
+`"check": { "keyed": { "key_objective": "ctf-key", "algorithm": "hmac-sha1", "input": "<challenge name>", "encoding": "hex" } }`.
