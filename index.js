@@ -11,6 +11,7 @@
 const fs = require("fs");
 const crypto = require("crypto");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const CLOUD_PROVIDERS = new Set(["aws", "azure", "gcp"]);
 const ALLOWED_PROVIDERS = new Set([
@@ -19,6 +20,7 @@ const ALLOWED_PROVIDERS = new Set([
 ]);
 const ALLOWED_ARCHS = new Set(["x86_64", "aarch64"]);
 const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/; // no NUL/ESC/etc in any field
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function fail(msg) {
   console.error(`::error::publish-lab: ${msg}`);
@@ -71,6 +73,12 @@ const clientSecret = input("client_secret", { required: true });
 const backendUrl = input("backend_url", { required: true }).replace(/\/+$/, "");
 const tokenUrl = input("token_url", { required: true });
 const publish = input("publish", { def: "true" }) !== "false";
+// Engine compatibility: the Isothrum release the CI pins (passed in) and the Isoloom that
+// generated the lab (read from the CLI below) are recorded so the launcher can hide labs it
+// can't run. The Isothrum version comes from the workflow, not the lab's own files.
+const isoloomBin = input("isoloom_bin", { def: "isoloom" });
+const isothrumVersion = input("isothrum_version", { required: true });
+if (!SEMVER.test(isothrumVersion)) fail("isothrum_version must be a semantic version like 0.11.0");
 mask(clientSecret);
 mask(backendUrl);
 mask(tokenUrl);
@@ -138,6 +146,33 @@ const isDir = (p) => {
   }
 };
 
+// The spec format and the Isoloom version are read from Isoloom itself, not guessed from the
+// files: `isoloom validate --json` prints { ok, specFormat, isoloomVersion, ... }. It is run with
+// a fixed argument vector (no shell), so nothing from the lab is interpolated into a command. The
+// command exits non-zero when the spec has problems, so stdout is captured from the error too.
+function isoloomCompat() {
+  let out;
+  try {
+    out = execFileSync(isoloomBin, ["validate", "--json", "--skip-files"], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
+  } catch (e) {
+    if (e && typeof e.stdout === "string" && e.stdout) out = e.stdout;
+    else fail(`could not run \`${isoloomBin} validate --json\`: ${(e && e.message) || e}`);
+  }
+  let report;
+  try {
+    report = JSON.parse(out);
+  } catch {
+    fail("`isoloom validate --json` did not print JSON (is isoloom 0.11 or later on PATH?)");
+  }
+  let specFormat;
+  if (report.specFormat === "v1") specFormat = "V1";
+  else if (report.specFormat === "legacy") specFormat = "LEGACY";
+  else fail("`isoloom validate --json` reported no spec format (is isoloom 0.11 or later on PATH?)");
+  const minIsoloom = String(report.isoloomVersion ?? "");
+  if (!SEMVER.test(minIsoloom)) fail(`isoloom reported an invalid version: ${minIsoloom}`);
+  return { specFormat, minIsoloom };
+}
+
 // Cloud services (Isoloom's cloud-services target): a Terraform module applied into the
 // player's own cloud account, the cloud named in the resolved spec.
 const cloudServices = isFile(".isoloom/cloud-services/up.sh");
@@ -195,6 +230,9 @@ if (meta.architectures !== undefined) {
 } else {
   architectures = runtime === "VM" ? ["x86_64"] : ["x86_64", "aarch64"];
 }
+
+// Engine compatibility, computed from the lab's spec with the Isoloom that generated it.
+const compat = isoloomCompat();
 
 // --- objectives (.ctf/objectives.json, optional): untrusted, validated field by field ---
 // A lab's challenges and their guided steps. `dev` values (the lab's development flags) are
@@ -322,6 +360,7 @@ async function main() {
     slug, title, description, category, difficulty,
     evidenceKind, evidenceParams: JSON.stringify(evidenceParams),
     capabilities, question, runtime, repository, commit, providers, architectures,
+    specFormat: compat.specFormat, minIsoloom: compat.minIsoloom, minIsothrum: isothrumVersion,
     ...(objectives ? { objectives } : {}),
   };
   const res = await fetch(`${backendUrl}/graphql`, {
@@ -352,6 +391,7 @@ async function main() {
   if (!out) fail("publishLab returned no data");
   console.log(`Published ${slug} [${runtime}]: ${out.state} (${out.labId})`);
   console.log(`Providers: ${providers.join(", ")}`);
+  console.log(`Engine: ${compat.specFormat}, isoloom ${compat.minIsoloom}, isothrum ${isothrumVersion}`);
   if (objectives) console.log(`Objectives: ${objectives.map((o) => o.key + (o.steps ? ` (${o.steps.length} steps)` : "")).join(", ")}`);
 }
 
