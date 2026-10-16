@@ -28,6 +28,17 @@ inputs:
       until the launcher runs them.
     required: false
     default: "true"
+  isothrum_version:
+    description: >-
+      The Isothrum runner release this lab was validated against (the version the CI pins), as a
+      semantic version like 0.11.0. Recorded as the minimum runner a launcher needs to run the lab.
+    required: true
+  isoloom_bin:
+    description: >-
+      The isoloom CLI to read the spec format and version from (`isoloom validate --json`).
+      Defaults to `isoloom` on PATH; the lab's generate step must have installed it.
+    required: false
+    default: isoloom
 runs:
   using: node20
   main: index.js
