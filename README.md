@@ -23,7 +23,7 @@ jobs:
     environment: production        # required: the approval gate (see Protection)
     steps:
       - uses: actions/checkout@v4
-      - uses: isoloom/isoloom@v0.7.2
+      - uses: isoloom/isoloom@v0.11.1   # 0.11+ : the action reads the spec format via `isoloom validate --json`
       - run: isoloom generate       # so providers are derived from a current tree
       - uses: CyberCTF/publish-lab-action@v1
         with:
@@ -31,9 +31,12 @@ jobs:
           client_secret: ${{ secrets.CYBERAUTH_CLIENT_SECRET }}
           backend_url: ${{ secrets.CYBERBACKEND_URL }}
           token_url: ${{ secrets.CYBERAUTH_TOKEN_URL }}
+          isothrum_version: "0.11.1"  # required: the Isothrum runner release this lab is validated against
 ```
 
-All four values (client id/secret and the backend/token URLs) are **organization** secrets (set once for CyberCTF, scoped to the lab repos), so rotation is one place, there is no per-repo copy, and no endpoint appears in a lab repo or a log.
+All four secret values (client id/secret and the backend/token URLs) are **organization** secrets (set once for CyberCTF, scoped to the lab repos), so rotation is one place, there is no per-repo copy, and no endpoint appears in a lab repo or a log.
+
+`isothrum_version` is **required**: it is the Isothrum runner release the lab was validated against, recorded as the minimum runner a launcher needs to run the lab. Pin it to the runner your CI validated on (currently `0.11.1`) and bump it when you re-validate against a newer runner. The isoloom action must be **0.11 or later**, because the action reads the lab's spec format and Isoloom version from `isoloom validate --json`.
 
 ## Protection against a malicious lab
 
