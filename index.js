@@ -178,6 +178,13 @@ function isoloomCompat() {
 const cloudServices = isFile(".isoloom/cloud-services/up.sh");
 const runtime = cloudServices ? "CLOUD" : isFile(".isoloom/docker/compose.yml") ? "DOCKER" : "VM";
 
+// The ways the lab can run, each from the edition Isoloom generated for it. A dual-form lab (one
+// isoloom.yml generated as both a Docker and a Vagrant edition) reports more than one, so the
+// launcher can offer a place for each; `runtime` above stays the primary/legacy value.
+const docker = isFile(".isoloom/docker/compose.yml");
+const vm = isFile(".isoloom/vagrant/Vagrantfile");
+const cloud = cloudServices;
+
 const derived = new Set();
 if (cloudServices) {
   let cloud;
@@ -359,7 +366,7 @@ async function main() {
   const labInput = {
     slug, title, description, category, difficulty,
     evidenceKind, evidenceParams: JSON.stringify(evidenceParams),
-    capabilities, question, runtime, repository, commit, providers, architectures,
+    capabilities, question, runtime, docker, vm, cloud, repository, commit, providers, architectures,
     specFormat: compat.specFormat, minIsoloom: compat.minIsoloom, minIsothrum: isothrumVersion,
     ...(objectives ? { objectives } : {}),
   };
